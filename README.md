@@ -1,5 +1,7 @@
 # rsa
 
+The rat that was added by the leakers was removed. original rsa has no rat.
+
 `rsa` is an addon for [`rsm`](https://github.com/rs-mod/rsm).
 
 ```bash
