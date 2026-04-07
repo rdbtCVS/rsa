@@ -217,7 +217,7 @@ public class AutoSS extends Module {
    public void SSR() {
       if (this.areaCheck()) {
          if ((Boolean)this.sendChat.getValue() && MinecraftClient.getInstance().getNetworkHandler() != null) {
-            MinecraftClient.getInstance().getNetworkHandler().sendChatCommand("pc SSRS SSRS SSRS!");
+            MinecraftClient.getInstance().getNetworkHandler().sendChatCommand("pc SSRS! blame tps");
          }
 
          this.start();

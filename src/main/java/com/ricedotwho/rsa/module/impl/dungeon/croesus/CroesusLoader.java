@@ -109,8 +109,8 @@ public class CroesusLoader {
          } else {
             worthless = temp;
          }
-      } catch (IOException var2) {
-         throw new RuntimeException(var2);
+      } catch (IOException e) {
+         throw new RuntimeException(e);
       }
    }
 
@@ -128,8 +128,8 @@ public class CroesusLoader {
          } else {
             alwaysBuy = temp;
          }
-      } catch (IOException var2) {
-         throw new RuntimeException(var2);
+      } catch (IOException e) {
+         throw new RuntimeException(e);
       }
    }
 
@@ -157,8 +157,8 @@ public class CroesusLoader {
          } else {
             runLog = temp;
          }
-      } catch (IOException var2) {
-         throw new RuntimeException(var2);
+      } catch (IOException e) {
+         throw new RuntimeException(e);
       }
    }
 

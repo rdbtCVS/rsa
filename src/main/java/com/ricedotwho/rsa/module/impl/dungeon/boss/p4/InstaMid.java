@@ -86,8 +86,8 @@ public class InstaMid extends Module {
    public void freeze() {
       try {
          Thread.sleep(((BigDecimal)this.millis.getValue()).longValue());
-      } catch (InterruptedException var2) {
-         throw new RuntimeException(var2);
+      } catch (InterruptedException interruptedException) {
+         throw new RuntimeException(interruptedException);
       }
    }
 

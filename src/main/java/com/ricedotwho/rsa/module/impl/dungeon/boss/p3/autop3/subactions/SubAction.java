@@ -8,7 +8,7 @@ public abstract class SubAction implements Accessor {
 
    public abstract boolean execute();
 
-   public abstract void serialize(JsonObject var1);
+   public abstract void serialize(JsonObject json);
 
    public SubActionType getType() {
       return this.type;

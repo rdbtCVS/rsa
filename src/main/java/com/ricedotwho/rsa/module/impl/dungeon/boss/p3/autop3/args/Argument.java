@@ -8,7 +8,7 @@ public abstract class Argument<T> implements Accessor {
 
    public abstract boolean check();
 
-   public abstract void consume(T var1);
+   public abstract void consume(T value);
 
    public abstract void reset();
 

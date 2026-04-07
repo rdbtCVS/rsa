@@ -4,7 +4,7 @@ import net.minecraft.client.world.ClientWorld;
 import net.minecraft.client.network.SequencedPacketCreator;
 
 public interface IMultiPlayerGameMode {
-   void sendPacketSequenced(ClientWorld var1, SequencedPacketCreator var2);
+   void sendPacketSequenced(ClientWorld world, SequencedPacketCreator packetCreator);
 
    void syncSlot();
 }

@@ -3,6 +3,7 @@ package com.ricedotwho.rsa.component.impl.pathfinding;
 import com.ricedotwho.rsa.RSA;
 import com.ricedotwho.rsa.component.impl.pathfinding.openset.BinaryHeapOpenSet;
 import com.ricedotwho.rsm.utils.EtherUtils;
+import com.ricedotwho.rsm.utils.EtherUtils.EtherPredictionResult;
 import java.util.HashMap;
 import java.util.HashSet;
 import net.minecraft.util.math.BlockPos;
@@ -185,9 +186,7 @@ public class EtherwarpPathfinder {
 
    private void consumeRaycastBlocks(PathNode parent, TriConsumer<PathNode, Float, Float> consumer) {
       HashSet<Integer> blockPosCache = new HashSet<>();
-      Vec3d eyePos = new Vec3d(
-         parent.getPos().getX() + 0.5, parent.getPos().getY() + 1.05 + 1.54F, parent.getPos().getZ() + 0.5
-      );
+      Vec3d basePos = new Vec3d(parent.getPos().getX() + 0.5, parent.getPos().getY() + 1.05, parent.getPos().getZ() + 0.5);
       float pitch = -90.0F;
 
       while (pitch <= 90.0F) {
@@ -195,8 +194,10 @@ public class EtherwarpPathfinder {
          float yawStepAtThisPitch = this.context.yawStep() / Math.max(0.01F, (float)Math.cos(pitchRadians));
 
          for (float yaw = 0.0F; yaw < 360.0F; yaw += yawStepAtThisPitch) {
-            BlockPos etherPos = EtherUtils.fastGetEtherFromOrigin(eyePos, yaw, pitch, 61);
-            if (etherPos != null) {
+            Vec3d lookVec = getLookVector(yaw, pitch);
+            EtherPredictionResult prediction = EtherUtils.getAccurateEtherPos(basePos, lookVec, 61.0, true);
+            BlockPos etherPos = prediction.pos();
+            if (prediction.succeeded() && etherPos != null) {
                int hash = PathNode.hashCode(etherPos);
                if (blockPosCache.add(hash)) {
                   PathNode node = this.getNodeAt(etherPos, hash, parent);
@@ -207,5 +208,12 @@ public class EtherwarpPathfinder {
 
          pitch += this.context.pitchStep();
       }
+   }
+
+   private static Vec3d getLookVector(float yaw, float pitch) {
+      double yawRadians = -Math.toRadians(yaw) - Math.PI;
+      double pitchRadians = -Math.toRadians(pitch);
+      double horizontal = -Math.cos(pitchRadians);
+      return new Vec3d(Math.sin(yawRadians) * horizontal, Math.sin(pitchRadians), Math.cos(yawRadians) * horizontal);
    }
 }

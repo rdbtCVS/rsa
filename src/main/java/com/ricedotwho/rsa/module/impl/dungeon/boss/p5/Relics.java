@@ -124,8 +124,8 @@ public class Relics extends Module {
                   }
                });
             }
-         } catch (IllegalAccessException | NoSuchFieldException var10) {
-            RSA.getLogger().error("Error while finding entityId!", var10);
+         } catch (IllegalAccessException | NoSuchFieldException exception) {
+            RSA.getLogger().error("Error while finding entityId!", exception);
          }
       }
    }

@@ -25,8 +25,8 @@ public class SoundPlayer {
          ) {
             Player player = new Player(bis);
             player.play();
-         } catch (Exception var9) {
-            RSA.chat(var9.getMessage());
+         } catch (Exception e) {
+            RSA.chat(e.getMessage());
          }
       }).start();
    }

@@ -18,52 +18,18 @@ import org.apache.http.util.EntityUtils;
 
 public class SessionAPI implements Accessor {
    public static String[] getProfileInfo(String token) throws IOException {
-      CloseableHttpClient client = HttpClients.createDefault();
-
-      String[] var8;
-      try {
+      try (CloseableHttpClient client = HttpClients.createDefault()) {
          HttpGet request = new HttpGet("https://api.minecraftservices.com/minecraft/profile");
          request.setHeader("Authorization", "Bearer " + token);
-         CloseableHttpResponse response = client.execute(request);
 
-         try {
+         try (CloseableHttpResponse response = client.execute(request)) {
             String jsonString = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
             JsonObject jsonObject = JsonParser.parseString(jsonString).getAsJsonObject();
             String ign = jsonObject.get("name").getAsString();
             String uuid = jsonObject.get("id").getAsString().replaceAll("-", "");
-            var8 = new String[]{ign, uuid};
-         } catch (Throwable var11) {
-            if (response != null) {
-               try {
-                  response.close();
-               } catch (Throwable var10) {
-                  var11.addSuppressed(var10);
-               }
-            }
-
-            throw var11;
+            return new String[]{ign, uuid};
          }
-
-         if (response != null) {
-            response.close();
-         }
-      } catch (Throwable var12) {
-         if (client != null) {
-            try {
-               client.close();
-            } catch (Throwable var9) {
-               var12.addSuppressed(var9);
-            }
-         }
-
-         throw var12;
       }
-
-      if (client != null) {
-         client.close();
-      }
-
-      return var8;
    }
 
    public static boolean validateSession(String token) {
@@ -73,58 +39,23 @@ public class SessionAPI implements Accessor {
          String uuid = profileInfo[1];
          Session user = mc.getSession();
          return ign.equals(user.getUsername()) && uuid.equals(user.getUuidOrNull().toString().replace("-", ""));
-      } catch (Exception var5) {
+      } catch (Exception exception) {
          return false;
       }
    }
 
    public static boolean checkOnline(String uuid) {
       try {
-         CloseableHttpClient client = HttpClients.createDefault();
-
-         boolean var6;
-         try {
+         try (CloseableHttpClient client = HttpClients.createDefault()) {
             HttpGet request = new HttpGet("https://api.slothpixel.me/api/players/" + uuid);
-            CloseableHttpResponse response = client.execute(request);
-
-            try {
+            try (CloseableHttpResponse response = client.execute(request)) {
                String jsonString = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
                JsonObject jsonObject = JsonParser.parseString(jsonString).getAsJsonObject();
-               var6 = jsonObject.get("online").getAsBoolean();
-            } catch (Throwable var9) {
-               if (response != null) {
-                  try {
-                     response.close();
-                  } catch (Throwable var8) {
-                     var9.addSuppressed(var8);
-                  }
-               }
-
-               throw var9;
+               return jsonObject.get("online").getAsBoolean();
             }
-
-            if (response != null) {
-               response.close();
-            }
-         } catch (Throwable var10) {
-            if (client != null) {
-               try {
-                  client.close();
-               } catch (Throwable var7) {
-                  var10.addSuppressed(var7);
-               }
-            }
-
-            throw var10;
          }
-
-         if (client != null) {
-            client.close();
-         }
-
-         return var6;
-      } catch (Exception var11) {
-         var11.printStackTrace();
+      } catch (Exception exception) {
+         exception.printStackTrace();
          return false;
       }
    }
@@ -134,95 +65,25 @@ public class SessionAPI implements Accessor {
    }
 
    public static int changeName(String newName, String token) throws IOException {
-      CloseableHttpClient client = HttpClients.createDefault();
-
-      int var5;
-      try {
+      try (CloseableHttpClient client = HttpClients.createDefault()) {
          HttpPut request = new HttpPut("https://api.minecraftservices.com/minecraft/profile/name/" + newName);
          request.setHeader("Authorization", "Bearer " + token);
-         CloseableHttpResponse response = client.execute(request);
-
-         try {
-            var5 = response.getStatusLine().getStatusCode();
-         } catch (Throwable var9) {
-            if (response != null) {
-               try {
-                  response.close();
-               } catch (Throwable var8) {
-                  var9.addSuppressed(var8);
-               }
-            }
-
-            throw var9;
+         try (CloseableHttpResponse response = client.execute(request)) {
+            return response.getStatusLine().getStatusCode();
          }
-
-         if (response != null) {
-            response.close();
-         }
-      } catch (Throwable var10) {
-         if (client != null) {
-            try {
-               client.close();
-            } catch (Throwable var7) {
-               var10.addSuppressed(var7);
-            }
-         }
-
-         throw var10;
       }
-
-      if (client != null) {
-         client.close();
-      }
-
-      return var5;
    }
 
    public static int changeSkin(String url, String token) throws IOException {
-      CloseableHttpClient client = HttpClients.createDefault();
-
-      int var6;
-      try {
+      try (CloseableHttpClient client = HttpClients.createDefault()) {
          HttpPost request = new HttpPost("https://api.minecraftservices.com/minecraft/profile/skins");
          request.setHeader("Authorization", "Bearer " + token);
          request.setHeader("Content-Type", "application/json");
          String jsonString = "{\n  \"variant\": \"classic\",\n  \"url\": \"%s\"\n}\n".formatted(url);
          request.setEntity(new StringEntity(jsonString));
-         CloseableHttpResponse response = client.execute(request);
-
-         try {
-            var6 = response.getStatusLine().getStatusCode();
-         } catch (Throwable var10) {
-            if (response != null) {
-               try {
-                  response.close();
-               } catch (Throwable var9) {
-                  var10.addSuppressed(var9);
-               }
-            }
-
-            throw var10;
+         try (CloseableHttpResponse response = client.execute(request)) {
+            return response.getStatusLine().getStatusCode();
          }
-
-         if (response != null) {
-            response.close();
-         }
-      } catch (Throwable var11) {
-         if (client != null) {
-            try {
-               client.close();
-            } catch (Throwable var8) {
-               var11.addSuppressed(var8);
-            }
-         }
-
-         throw var11;
       }
-
-      if (client != null) {
-         client.close();
-      }
-
-      return var6;
    }
 }

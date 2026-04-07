@@ -28,9 +28,9 @@ public abstract class Node {
       this(localPos, awaitManager, 0.5F, start);
    }
 
-   public Node(Pos localPos, AwaitManager awaitManager, float r, boolean start) {
+   public Node(Pos localPos, AwaitManager awaitManager, float radius, boolean start) {
       this.localPos = localPos;
-      this.radius = r;
+      this.radius = radius;
       this.awaitManager = awaitManager;
       this.start = start;
       this.triggered = false;
@@ -52,9 +52,9 @@ public abstract class Node {
       }
    }
 
-   public abstract boolean run(Pos var1);
+   public abstract boolean run(Pos playerPos);
 
-   public abstract void render(boolean var1);
+   public abstract void render(boolean depth);
 
    protected boolean cancel() {
       this.reset();
@@ -66,12 +66,14 @@ public abstract class Node {
    }
 
    public boolean isInNode(Pos playerPos) {
-      return !AutoRoutes.getCenterOnly().getValue()
-         ? playerPos.squaredDistanceTo(this.realPos) <= this.radius * this.radius
-         : this.realPos.x() == playerPos.x()
-            && playerPos.y() >= this.realPos.y() - 0.05
-            && playerPos.y() <= this.realPos.y() + 0.05
-            && this.realPos.z() == playerPos.z();
+      if (!AutoRoutes.getCenterOnly().getValue()) {
+         return playerPos.squaredDistanceTo(this.realPos) <= this.radius * this.radius;
+      }
+
+      return this.realPos.x() == playerPos.x()
+         && playerPos.y() >= this.realPos.y() - 0.05
+         && playerPos.y() <= this.realPos.y() + 0.05
+         && this.realPos.z() == playerPos.z();
    }
 
    public void updateLastTickTime(int lastTickTime) {
@@ -90,18 +92,18 @@ public abstract class Node {
    public boolean updateNodeState(Pos playerPos, int tickTime) {
       if (tickTime <= this.lastTickTime) {
          return false;
-      } else {
-         boolean bl = this.isInNode(playerPos);
-         if (bl && !this.triggered) {
-            return true;
-         } else {
-            if (!bl && this.triggered) {
-               this.reset();
-            }
-
-            return false;
-         }
       }
+
+      boolean inNode = this.isInNode(playerPos);
+      if (inNode && !this.triggered) {
+         return true;
+      }
+
+      if (!inNode && this.triggered) {
+         this.reset();
+      }
+
+      return false;
    }
 
    public abstract String getName();
@@ -116,10 +118,9 @@ public abstract class Node {
       json.addProperty("start", this.start);
       if (this.awaitManager != null && this.awaitManager.hasAwaits()) {
          json.add("awaits", this.awaitManager.serialize());
-         return json;
-      } else {
-         return json;
       }
+
+      return json;
    }
 
    public void reset() {

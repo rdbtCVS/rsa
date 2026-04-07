@@ -90,11 +90,11 @@ public abstract class Ring implements Accessor {
    }
 
    public boolean updateState(Vec3d playerPos, Vec3d oldPos) {
-      boolean bl = this.isInNode(playerPos, oldPos);
-      if (bl && !this.triggered) {
+      boolean inNode = this.isInNode(playerPos, oldPos);
+      if (inNode && !this.triggered) {
          return true;
       } else {
-         if (!bl && this.triggered) {
+         if (!inNode && this.triggered) {
             this.reset();
          }
 
@@ -141,7 +141,7 @@ public abstract class Ring implements Accessor {
 
    public abstract int getPriority();
 
-   public abstract boolean tick(MutableInput var1, PlayerInput var2, AutoP3 var3);
+   public abstract boolean tick(MutableInput input, PlayerInput playerInput, AutoP3 module);
 
    public abstract void feedback();
 

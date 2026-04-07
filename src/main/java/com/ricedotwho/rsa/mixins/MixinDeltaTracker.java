@@ -11,17 +11,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Dynamic.class)
 public abstract class MixinDeltaTracker {
    @Shadow
-   public abstract float getTickProgress(boolean var1);
+   public abstract float getTickProgress(boolean tick);
 
    @Inject(method = "getTickProgress", at = @At("HEAD"), cancellable = true)
-   private void isEntityFrozen(boolean bl, CallbackInfoReturnable<Float> cir) {
+   private void isEntityFrozen(boolean isPaused, CallbackInfoReturnable<Float> cir) {
       if (TickFreeze.isFrozen()) {
          cir.setReturnValue(TickFreeze.getPartialTick());
       }
    }
 
    @Inject(method = "beginRenderTick", at = @At("HEAD"))
-   public void advanceGameTime(long l, boolean tick, CallbackInfoReturnable<Integer> cir) {
+   public void advanceGameTime(long frameTime, boolean tick, CallbackInfoReturnable<Integer> cir) {
       TickFreeze.setLastTickPartialTicks(this.getTickProgress(true));
    }
 }

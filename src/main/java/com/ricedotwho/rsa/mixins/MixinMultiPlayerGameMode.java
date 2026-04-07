@@ -26,7 +26,7 @@ public abstract class MixinMultiPlayerGameMode implements IMultiPlayerGameMode {
    protected abstract void syncSelectedSlot();
 
    @Shadow
-   protected abstract void sendSequencedPacket(ClientWorld var1, SequencedPacketCreator var2);
+   protected abstract void sendSequencedPacket(ClientWorld world, SequencedPacketCreator packetCreator);
 
    @Override
    public void sendPacketSequenced(ClientWorld world, SequencedPacketCreator packetCreator) {

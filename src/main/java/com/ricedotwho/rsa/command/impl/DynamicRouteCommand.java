@@ -35,13 +35,13 @@ public class DynamicRouteCommand extends Command {
                            .then(literal("stop").executes(DynamicRouteCommand::stopPathing)))
                         .then(
                            literal("path")
-                              .then(argument("pos", BlockPosArgumentType.blockPos()).executes(ctx -> path(ctx, (DefaultPosArgument)ctx.getArgument("pos", DefaultPosArgument.class))))
+                              .then(argument("pos", BlockPosArgumentType.blockPos()).executes(ctx -> path(ctx, ctx.getArgument("pos", DefaultPosArgument.class))))
                         ))
                      .then(
                         literal("roompath")
                            .then(
                               argument("room", StringArgumentType.greedyString())
-                                 .executes(ctx -> dungeonRoomPath(ctx, (String)ctx.getArgument("room", String.class)))
+                                 .executes(ctx -> dungeonRoomPath(ctx, ctx.getArgument("room", String.class)))
                            )
                      ))
                   .then(
@@ -55,9 +55,9 @@ public class DynamicRouteCommand extends Command {
                                           .executes(
                                              ctx -> insta(
                                                 ctx,
-                                                (String)ctx.getArgument("room1", String.class),
-                                                (String)ctx.getArgument("room2", String.class),
-                                                (String)ctx.getArgument("room3", String.class)
+                                                ctx.getArgument("room1", String.class),
+                                                ctx.getArgument("room2", String.class),
+                                                ctx.getArgument("room3", String.class)
                                              )
                                           )
                                     )
@@ -66,145 +66,154 @@ public class DynamicRouteCommand extends Command {
                   ))
                .then(
                   literal("roomfind")
-                     .then(argument("pos", BlockPosArgumentType.blockPos()).executes(ctx -> dungeonPath(ctx, (DefaultPosArgument)ctx.getArgument("pos", DefaultPosArgument.class))))
+                     .then(argument("pos", BlockPosArgumentType.blockPos()).executes(ctx -> dungeonPath(ctx, ctx.getArgument("pos", DefaultPosArgument.class))))
                ))
             .then(literal("cp").executes(DynamicRouteCommand::copyBlockPosLook)))
          .then(literal("remove").executes(DynamicRouteCommand::removeNode));
    }
 
    private static int stopPathing(CommandContext<ClientCommandSource> ctx) {
-      boolean bl = ((DynamicRoutes)RSM.getModule(DynamicRoutes.class)).cancelPathing();
-      if (bl) {
+      boolean cancelled = ((DynamicRoutes)RSM.getModule(DynamicRoutes.class)).cancelPathing();
+      if (cancelled) {
          RSA.chat("Cancelled pathing!");
          return 1;
-      } else {
-         RSA.chat("No pathing active!");
-         return 0;
       }
+
+      RSA.chat("No pathing active!");
+      return 0;
    }
 
    private static int copyBlockPosLook(CommandContext<ClientCommandSource> ctx) {
-      Vec3d pos = MinecraftClient.getInstance().gameRenderer.getCamera().getPos();
-      float yaw = MinecraftClient.getInstance().gameRenderer.getCamera().getYaw();
-      float pitch = MinecraftClient.getInstance().gameRenderer.getCamera().getPitch();
-      Vec3d vec = EtherUtils.rayTraceBlock(61, yaw, pitch, pos);
-      Vec3d viewVector = vec.subtract(pos).normalize();
-      Vec3d vec2 = viewVector.multiply(0.001F).add(vec);
-      BlockPos ether = BlockPos.ofFloored(vec2);
-      String s = ether.getX() + " " + ether.getY() + " " + ether.getZ();
-      MinecraftClient.getInstance().keyboard.setClipboard(s);
-      RSA.chat("Copied " + s);
+      MinecraftClient client = MinecraftClient.getInstance();
+      Vec3d cameraPos = client.gameRenderer.getCamera().getPos();
+      float yaw = client.gameRenderer.getCamera().getYaw();
+      float pitch = client.gameRenderer.getCamera().getPitch();
+      Vec3d hitPos = EtherUtils.rayTraceBlock(61, yaw, pitch, cameraPos);
+      Vec3d viewVector = hitPos.subtract(cameraPos).normalize();
+      Vec3d nudgedHitPos = viewVector.multiply(0.001F).add(hitPos);
+      BlockPos blockPos = BlockPos.ofFloored(nudgedHitPos);
+      String clipboardText = blockPos.getX() + " " + blockPos.getY() + " " + blockPos.getZ();
+      client.keyboard.setClipboard(clipboardText);
+      RSA.chat("Copied " + clipboardText);
       return 1;
    }
 
+   private static BlockPos getPlayerStartPos(MinecraftClient client) {
+      return BlockPos.ofFloored(client.player.getEntityPos().subtract(0.0, 0.001F, 0.0));
+   }
+
    private static int path(CommandContext<ClientCommandSource> ctx, DefaultPosArgument pos) {
-      if (MinecraftClient.getInstance().player == null) {
+      MinecraftClient client = MinecraftClient.getInstance();
+      if (client.player == null) {
          return 0;
-      } else {
-         BlockPos blockPos = BlockPos.ofFloored(pos.x().value(), pos.y().value(), pos.z().value());
-         BlockPos startPos = BlockPos.ofFloored(MinecraftClient.getInstance().player.getEntityPos().subtract(0.0, 0.001F, 0.0));
-         ((DynamicRoutes)RSM.getModule(DynamicRoutes.class)).executePath(startPos, new GoalXYZ(blockPos));
-         return 1;
       }
+
+      BlockPos blockPos = BlockPos.ofFloored(pos.x().value(), pos.y().value(), pos.z().value());
+      BlockPos startPos = getPlayerStartPos(client);
+      ((DynamicRoutes)RSM.getModule(DynamicRoutes.class)).executePath(startPos, new GoalXYZ(blockPos));
+      return 1;
    }
 
    private static int insta(CommandContext<ClientCommandSource> ctx, String... roomNames) {
-      if (MinecraftClient.getInstance().player == null) {
+      MinecraftClient client = MinecraftClient.getInstance();
+      if (client.player == null) {
          return 0;
-      } else {
-         BlockPos startPos = BlockPos.ofFloored(MinecraftClient.getInstance().player.getEntityPos().subtract(0.0, 0.001F, 0.0));
-         List<GoalDungeonRoom> goals = new ArrayList<>();
-
-         for (String s : roomNames) {
-            UniqueRoom uniqueRoom = DungeonInfo.getRoomByName(s);
-            if (uniqueRoom == null || uniqueRoom.getTiles().isEmpty()) {
-               RSA.chat("Room not loaded!");
-            }
-
-            GoalDungeonRoom goal = GoalDungeonRoom.create(uniqueRoom);
-            if (goal == null) {
-               RSA.chat("Failed to create goal!");
-               return 0;
-            }
-
-            goals.add(goal);
-         }
-
-         ((DynamicRoutes)RSM.getModule(DynamicRoutes.class)).pathGoals(startPos, goals);
-         return 1;
       }
-   }
 
-   private static int dungeonRoomPath(CommandContext<ClientCommandSource> ctx, String uniqueRoomName) {
-      if (MinecraftClient.getInstance().player == null) {
-         return 0;
-      } else {
-         UniqueRoom uniqueRoom = DungeonInfo.getRoomByName(uniqueRoomName);
+      BlockPos startPos = getPlayerStartPos(client);
+      List<GoalDungeonRoom> goals = new ArrayList<>();
+      for (String roomName : roomNames) {
+         UniqueRoom uniqueRoom = DungeonInfo.getRoomByName(roomName);
          if (uniqueRoom == null || uniqueRoom.getTiles().isEmpty()) {
             RSA.chat("Room not loaded!");
          }
 
-         BlockPos startPos = BlockPos.ofFloored(MinecraftClient.getInstance().player.getEntityPos().subtract(0.0, 0.001F, 0.0));
          GoalDungeonRoom goal = GoalDungeonRoom.create(uniqueRoom);
          if (goal == null) {
             RSA.chat("Failed to create goal!");
             return 0;
-         } else {
-            ((DynamicRoutes)RSM.getModule(DynamicRoutes.class)).executePath(startPos, goal);
-            return 1;
          }
+
+         goals.add(goal);
       }
+
+      ((DynamicRoutes)RSM.getModule(DynamicRoutes.class)).pathGoals(startPos, goals);
+      return 1;
+   }
+
+   private static int dungeonRoomPath(CommandContext<ClientCommandSource> ctx, String uniqueRoomName) {
+      MinecraftClient client = MinecraftClient.getInstance();
+      if (client.player == null) {
+         return 0;
+      }
+
+      UniqueRoom uniqueRoom = DungeonInfo.getRoomByName(uniqueRoomName);
+      if (uniqueRoom == null || uniqueRoom.getTiles().isEmpty()) {
+         RSA.chat("Room not loaded!");
+      }
+
+      BlockPos startPos = getPlayerStartPos(client);
+      GoalDungeonRoom goal = GoalDungeonRoom.create(uniqueRoom);
+      if (goal == null) {
+         RSA.chat("Failed to create goal!");
+         return 0;
+      }
+
+      ((DynamicRoutes)RSM.getModule(DynamicRoutes.class)).executePath(startPos, goal);
+      return 1;
    }
 
    private static int dungeonPath(CommandContext<ClientCommandSource> ctx, DefaultPosArgument pos) {
-      if (MinecraftClient.getInstance().player == null) {
+      MinecraftClient client = MinecraftClient.getInstance();
+      if (client.player == null) {
          return 0;
-      } else {
-         BlockPos blockPos = BlockPos.ofFloored(pos.x().value(), pos.y().value(), pos.z().value());
-         BlockPos startPos = BlockPos.ofFloored(MinecraftClient.getInstance().player.getEntityPos().subtract(0.0, 0.001F, 0.0));
-         GoalDungeonXYZ goal = GoalDungeonXYZ.create(blockPos);
-         if (goal == null) {
-            RSA.chat("Failed to create goal!");
-            return 0;
-         } else {
-            ((DynamicRoutes)RSM.getModule(DynamicRoutes.class)).executePath(startPos, goal);
-            return 1;
-         }
       }
+
+      BlockPos blockPos = BlockPos.ofFloored(pos.x().value(), pos.y().value(), pos.z().value());
+      BlockPos startPos = getPlayerStartPos(client);
+      GoalDungeonXYZ goal = GoalDungeonXYZ.create(blockPos);
+      if (goal == null) {
+         RSA.chat("Failed to create goal!");
+         return 0;
+      }
+
+      ((DynamicRoutes)RSM.getModule(DynamicRoutes.class)).executePath(startPos, goal);
+      return 1;
    }
 
    private static int clearNodes(CommandContext<ClientCommandSource> ctx) {
       if (!((DynamicRoutes)RSM.getModule(DynamicRoutes.class)).clearNodes()) {
          RSA.chat("No nodes found!");
          return 0;
-      } else {
-         RSA.chat("Cleared all nodes!");
-         return 1;
       }
+
+      RSA.chat("Cleared all nodes!");
+      return 1;
    }
 
    private static int removeNode(CommandContext<ClientCommandSource> ctx) {
       if (!((DynamicRoutes)RSM.getModule(DynamicRoutes.class)).removeNearest()) {
          RSA.chat("No nodes found in this room!");
          return 0;
-      } else {
-         RSA.chat("Removed node!");
-         return 1;
       }
+
+      RSA.chat("Removed node!");
+      return 1;
    }
 
    private static int addNode(CommandContext<ClientCommandSource> ctx) {
-      if (MinecraftClient.getInstance().player == null) {
+      MinecraftClient client = MinecraftClient.getInstance();
+      if (client.player == null) {
          return 0;
-      } else {
-         boolean bl = ((DynamicRoutes)RSM.getModule(DynamicRoutes.class)).addNode(MinecraftClient.getInstance().player);
-         if (!bl) {
-            RSA.chat("Failed to raytrace etherwarp!");
-            return 0;
-         } else {
-            RSA.chat("Added " + NodeType.ETHERWARP + " node!");
-            return 1;
-         }
       }
+
+      boolean added = ((DynamicRoutes)RSM.getModule(DynamicRoutes.class)).addNode(client.player);
+      if (!added) {
+         RSA.chat("Failed to raytrace etherwarp!");
+         return 0;
+      }
+
+      RSA.chat("Added " + NodeType.ETHERWARP + " node!");
+      return 1;
    }
 }

@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(value = ClientConnection.class, priority = 400)
 public abstract class MixinLowPriorityConnection implements IConnection {
    @Shadow
-   protected abstract void sendImmediately(Packet<?> var1, @Nullable ChannelFutureListener var2, boolean var3);
+   protected abstract void sendImmediately(Packet<?> packet, @Nullable ChannelFutureListener listener, boolean flush);
 
    @Inject(
       method = "channelRead0",
@@ -36,7 +36,7 @@ public abstract class MixinLowPriorityConnection implements IConnection {
    }
 
    @Inject(method = "sendImmediately", at = @At("HEAD"), cancellable = true)
-   private void onSendPacket(Packet<?> packet, @Nullable ChannelFutureListener channelFutureListener, boolean bl, CallbackInfo ci) {
+   private void onSendPacket(Packet<?> packet, @Nullable ChannelFutureListener channelFutureListener, boolean flush, CallbackInfo ci) {
       if (Blink.onSendPacket(packet)) {
          ci.cancel();
       }

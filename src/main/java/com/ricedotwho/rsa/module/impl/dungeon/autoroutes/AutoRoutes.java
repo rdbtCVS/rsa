@@ -171,24 +171,26 @@ public class AutoRoutes extends Module implements Accessor {
    public void onClientTickStart(Start event) {
       this.lastBlockC08--;
       this.isRouting = false;
-      if (Location.getArea().is(Island.Dungeon)) {
-         this.tickTime++;
-         if (!this.hasGuiOpen()) {
-            if (!(Boolean)this.editMode.getValue() && Map.getCurrentRoom() != null && MinecraftClient.getInstance().player != null) {
-               Room currentRoom = Map.getCurrentRoom();
-               List<Node> nodes = this.activeNodes.get(currentRoom.getData());
-               if (nodes != null && !nodes.isEmpty()) {
-                  Pos playerPos = new Pos(MinecraftClient.getInstance().player.getEntityPos());
-                  nodes.forEach(n -> n.updateNodeState(playerPos, this.tickTime));
-                  this.lastType = null;
+      if (!Location.getArea().is(Island.Dungeon)) {
+         return;
+      }
 
-                  while (this.handleQueue(playerPos, nodes)) {
-                  }
-               } else {
-                  this.inNode = null;
-               }
-            }
-         }
+      this.tickTime++;
+      if (this.hasGuiOpen() || (Boolean)this.editMode.getValue() || Map.getCurrentRoom() == null || MinecraftClient.getInstance().player == null) {
+         return;
+      }
+
+      Room currentRoom = Map.getCurrentRoom();
+      List<Node> nodes = this.activeNodes.get(currentRoom.getData());
+      if (nodes == null || nodes.isEmpty()) {
+         this.inNode = null;
+         return;
+      }
+
+      Pos playerPos = new Pos(MinecraftClient.getInstance().player.getEntityPos());
+      nodes.forEach(n -> n.updateNodeState(playerPos, this.tickTime));
+      this.lastType = null;
+      while (this.handleQueue(playerPos, nodes)) {
       }
    }
 
@@ -215,7 +217,7 @@ public class AutoRoutes extends Module implements Accessor {
    }
 
    private void cacheRoomNodes(Room room) {
-      List<Node> nodes = (List<Node>)((HashMap)this.data.getValue()).get(room.getData().name());
+      List<Node> nodes = this.getSavedNodes().get(room.getData().name());
       if (nodes != null && !nodes.isEmpty()) {
          UniqueRoom uniqueRoom = room.getUniqueRoom();
          nodes.forEach(n -> n.calculate(uniqueRoom));
@@ -242,98 +244,104 @@ public class AutoRoutes extends Module implements Accessor {
       return MinecraftClient.getInstance().player != null && MinecraftClient.getInstance().currentScreen instanceof HandledScreen;
    }
 
+   @SuppressWarnings("unchecked")
+   private HashMap<String, List<Node>> getSavedNodes() {
+      return (HashMap<String, List<Node>>)this.data.getValue();
+   }
+
    public boolean clearNodes(UniqueRoom uniqueRoom) {
-      if (MinecraftClient.getInstance().player != null && this.activeNodes.containsKey(uniqueRoom.getMainRoom().getData())) {
-         List<Node> nodes = this.activeNodes.get(uniqueRoom.getMainRoom().getData());
-         if (nodes.isEmpty()) {
-            return false;
-         } else {
-            nodes.clear();
-            this.save();
-            return true;
-         }
-      } else {
+      if (MinecraftClient.getInstance().player == null || !this.activeNodes.containsKey(uniqueRoom.getMainRoom().getData())) {
          return false;
       }
+
+      List<Node> nodes = this.activeNodes.get(uniqueRoom.getMainRoom().getData());
+      if (nodes.isEmpty()) {
+         return false;
+      }
+
+      nodes.clear();
+      this.save();
+      return true;
    }
 
    public boolean removeNearest(UniqueRoom uniqueRoom) {
-      if (MinecraftClient.getInstance().player != null && this.activeNodes.containsKey(uniqueRoom.getMainRoom().getData())) {
-         List<Node> nodes = this.activeNodes.get(uniqueRoom.getMainRoom().getData());
-         if (nodes.isEmpty()) {
-            return false;
-         } else {
-            int bestIndex = -1;
-            double bestDistance = Double.MAX_VALUE;
-            Vec3d playerPos = MinecraftClient.getInstance().player.getEntityPos();
-
-            for (int i = 0; i < nodes.size(); i++) {
-               double d = nodes.get(i).getRealPos().squaredDistanceTo(playerPos);
-               if (!(d >= bestDistance)) {
-                  bestIndex = i;
-                  bestDistance = d;
-               }
-            }
-
-            if (bestIndex < 0) {
-               return false;
-            } else {
-               nodes.remove(bestIndex);
-               this.save();
-               return true;
-            }
-         }
-      } else {
+      if (MinecraftClient.getInstance().player == null || !this.activeNodes.containsKey(uniqueRoom.getMainRoom().getData())) {
          return false;
       }
+
+      List<Node> nodes = this.activeNodes.get(uniqueRoom.getMainRoom().getData());
+      if (nodes.isEmpty()) {
+         return false;
+      }
+
+      int bestIndex = -1;
+      double bestDistance = Double.MAX_VALUE;
+      Vec3d playerPos = MinecraftClient.getInstance().player.getEntityPos();
+
+      for (int i = 0; i < nodes.size(); i++) {
+         double distance = nodes.get(i).getRealPos().squaredDistanceTo(playerPos);
+         if (distance < bestDistance) {
+            bestIndex = i;
+            bestDistance = distance;
+         }
+      }
+
+      if (bestIndex < 0) {
+         return false;
+      }
+
+      nodes.remove(bestIndex);
+      this.save();
+      return true;
    }
 
    public boolean undoNode(UniqueRoom uniqueRoom) {
-      if (MinecraftClient.getInstance().player != null && this.activeNodes.containsKey(uniqueRoom.getMainRoom().getData())) {
-         List<Node> nodes = this.activeNodes.get(uniqueRoom.getMainRoom().getData());
-         if (nodes.isEmpty()) {
-            return false;
-         } else {
-            if (!this.redoMap.containsKey(uniqueRoom.getName())) {
-               this.redoMap.put(uniqueRoom.getName(), new ArrayList<>());
-            }
-
-            Node node = nodes.removeLast();
-            this.redoMap.get(uniqueRoom.getName()).add(node);
-            this.save();
-            RSA.chat("Undid %s at %s", node.getName(), node.getRealPos().toChatString());
-            return true;
-         }
-      } else {
+      if (MinecraftClient.getInstance().player == null || !this.activeNodes.containsKey(uniqueRoom.getMainRoom().getData())) {
          return false;
       }
+
+      List<Node> nodes = this.activeNodes.get(uniqueRoom.getMainRoom().getData());
+      if (nodes.isEmpty()) {
+         return false;
+      }
+
+      if (!this.redoMap.containsKey(uniqueRoom.getName())) {
+         this.redoMap.put(uniqueRoom.getName(), new ArrayList<>());
+      }
+
+      Node node = nodes.removeLast();
+      this.redoMap.get(uniqueRoom.getName()).add(node);
+      this.save();
+      RSA.chat("Undid %s at %s", node.getName(), node.getRealPos().toChatString());
+      return true;
    }
 
    public boolean redoNode(UniqueRoom uniqueRoom) {
-      if (MinecraftClient.getInstance().player != null && this.activeNodes.containsKey(uniqueRoom.getMainRoom().getData())) {
-         List<Node> nodes = this.activeNodes.get(uniqueRoom.getMainRoom().getData());
-         if (!this.redoMap.containsKey(uniqueRoom.getName())) {
-            return false;
-         } else {
-            List<Node> redo = this.redoMap.get(uniqueRoom.getName());
-            if (redo.isEmpty()) {
-               return false;
-            } else {
-               Node node = redo.removeLast();
-               nodes.add(node);
-               this.save();
-               RSA.chat("Redid %s at %s", node.getName(), node.getRealPos().toChatString());
-               return true;
-            }
-         }
-      } else {
+      if (MinecraftClient.getInstance().player == null || !this.activeNodes.containsKey(uniqueRoom.getMainRoom().getData())) {
          return false;
       }
+
+      List<Node> nodes = this.activeNodes.get(uniqueRoom.getMainRoom().getData());
+      if (!this.redoMap.containsKey(uniqueRoom.getName())) {
+         return false;
+      }
+
+      List<Node> redo = this.redoMap.get(uniqueRoom.getName());
+      if (redo.isEmpty()) {
+         return false;
+      }
+
+      Node node = redo.removeLast();
+      nodes.add(node);
+      this.save();
+      RSA.chat("Redid %s at %s", node.getName(), node.getRealPos().toChatString());
+      return true;
    }
 
    public void addNode(Node node, UniqueRoom uniqueRoom) {
-      ((HashMap)this.data.getValue()).putIfAbsent(uniqueRoom.getName(), new ArrayList());
-      List<Node> nodes = (List<Node>)((HashMap)this.data.getValue()).get(uniqueRoom.getName());
+      HashMap<String, List<Node>> savedNodes = this.getSavedNodes();
+      savedNodes.putIfAbsent(uniqueRoom.getName(), new ArrayList());
+      List<Node> nodes = savedNodes.get(uniqueRoom.getName());
       node.calculate(uniqueRoom);
       nodes.add(node);
       if (!this.activeNodes.containsKey(uniqueRoom.getMainRoom().getData())) {
@@ -343,8 +351,8 @@ public class AutoRoutes extends Module implements Accessor {
       this.save();
    }
 
-   public void setForceSneak(boolean bl) {
-      this.forceNextNotSneak = bl;
+   public void setForceSneak(boolean forceNotSneak) {
+      this.forceNextNotSneak = forceNotSneak;
    }
 
    public void onTrigger() {
@@ -367,18 +375,21 @@ public class AutoRoutes extends Module implements Accessor {
             PlayerInput input = packet.input();
             this.crouchDataShiftRegister = (byte)(this.crouchDataShiftRegister << 1);
             this.crouchDataShiftRegister = (byte)(this.crouchDataShiftRegister | (byte)(input.sneak() ? 1 : 0));
-         } else if (this.inNode != null && Map.getCurrentRoom() != null) {
-            if (this.inNode.hasAwaits() && this.inNode.getAwaitManager().hasAwait(AwaitType.SECRETS)) {
-               if (event.getPacket() instanceof PlayerInteractBlockC2SPacket useItemOnPacket) {
-                  Block block = MinecraftClient.getInstance().world.getBlockState(useItemOnPacket.getBlockHitResult().getBlockPos()).getBlock();
-                  if (block == Blocks.CHEST || block == Blocks.TRAPPED_CHEST || block == Blocks.PLAYER_HEAD || block == Blocks.LEVER) {
-                     this.inNode.getAwaitManager().consume(AwaitSecrets.class, 1);
-                     this.lastBlockC08 = 2;
-                  }
-               }
+         } else if (this.canConsumeSecretAwaits() && event.getPacket() instanceof PlayerInteractBlockC2SPacket useItemOnPacket) {
+            Block block = MinecraftClient.getInstance().world.getBlockState(useItemOnPacket.getBlockHitResult().getBlockPos()).getBlock();
+            if (block == Blocks.CHEST || block == Blocks.TRAPPED_CHEST || block == Blocks.PLAYER_HEAD || block == Blocks.LEVER) {
+               this.inNode.getAwaitManager().consume(AwaitSecrets.class, 1);
+               this.lastBlockC08 = 2;
             }
          }
       }
+   }
+
+   private boolean canConsumeSecretAwaits() {
+      return this.inNode != null
+         && Map.getCurrentRoom() != null
+         && this.inNode.hasAwaits()
+         && this.inNode.getAwaitManager().hasAwait(AwaitType.SECRETS);
    }
 
    @SubscribeEvent
@@ -387,8 +398,7 @@ public class AutoRoutes extends Module implements Accessor {
          && Map.getCurrentRoom() != null
          && this.inNode != null
          && mc.world != null
-         && this.inNode.hasAwaits()
-         && this.inNode.getAwaitManager().hasAwait(AwaitType.SECRETS)) {
+         && this.canConsumeSecretAwaits()) {
          if (event.getPacket() instanceof ItemPickupAnimationS2CPacket packet) {
             if (MinecraftClient.getInstance().world == null) {
                return;
@@ -430,35 +440,35 @@ public class AutoRoutes extends Module implements Accessor {
    }
 
    public boolean handleQueue(Pos playerPos, List<Node> nodes) {
-      List<Node> activeNodes = new ArrayList<>();
+      List<Node> eligibleNodes = new ArrayList<>();
 
       for (Node node : nodes) {
          if (node.isInNode(playerPos)) {
             this.isRouting = true;
             if (!node.isTriggered() && !node.hasRanThisTick(this.tickTime)) {
-               activeNodes.add(node);
+               eligibleNodes.add(node);
             }
          }
       }
 
-      if (activeNodes.isEmpty()) {
+      if (eligibleNodes.isEmpty()) {
          this.inNode = null;
          return false;
       } else {
-         activeNodes.sort(Comparator.<Node>comparingInt(n -> n.getPriority()).reversed());
-         Node nodex = activeNodes.getFirst();
-         this.trySetInNode(nodex);
-         if (!nodex.shouldAwait() && this.lastBlockC08 <= 0 && (this.lastType == null || this.lastType == nodex.getClass())) {
-            nodex.preTrigger(this.tickTime);
-            boolean bl = nodex.run(playerPos);
-            if (bl) {
-               this.lastType = (Class<? extends Node>)nodex.getClass();
+         eligibleNodes.sort(Comparator.<Node>comparingInt(node -> node.getPriority()).reversed());
+         Node node = eligibleNodes.getFirst();
+         this.trySetInNode(node);
+         if (!node.shouldAwait() && this.lastBlockC08 <= 0 && (this.lastType == null || this.lastType == node.getClass())) {
+            node.preTrigger(this.tickTime);
+            boolean ran = node.run(playerPos);
+            if (ran) {
+               this.lastType = (Class<? extends Node>)node.getClass();
             }
 
-            return bl;
-         } else {
-            return false;
+            return ran;
          }
+
+         return false;
       }
    }
 
@@ -520,15 +530,15 @@ public class AutoRoutes extends Module implements Accessor {
    }
 
    public void createBackup() {
-      File backUpDir = FileUtils.getCategoryFolder(this.data.getPath() + "/backups");
-      List<Long> timeStamps = getTimeStamps(backUpDir);
-      pruneBackups(backUpDir, timeStamps, 9);
-      File newBackup = new File(backUpDir, System.currentTimeMillis() + ".json");
+      File backupDir = FileUtils.getCategoryFolder(this.data.getPath() + "/backups");
+      List<Long> timestamps = getTimeStamps(backupDir);
+      pruneBackups(backupDir, timestamps, 9);
+      File newBackup = new File(backupDir, System.currentTimeMillis() + ".json");
 
       try {
          Files.copy(this.data.getFile().toPath(), newBackup.toPath(), StandardCopyOption.REPLACE_EXISTING);
-      } catch (IOException var5) {
-         RSA.getLogger().error("Failed to create autoroute backup!", var5);
+      } catch (IOException exception) {
+         RSA.getLogger().error("Failed to create autoroute backup!", exception);
          return;
       }
 
@@ -536,32 +546,32 @@ public class AutoRoutes extends Module implements Accessor {
    }
 
    @NotNull
-   private static List<Long> getTimeStamps(File backUpDir) {
-      List<Long> timeStamps = new ArrayList<>();
+   private static List<Long> getTimeStamps(File backupDir) {
+      List<Long> timestamps = new ArrayList<>();
 
-      for (File file : Objects.requireNonNull(backUpDir.listFiles())) {
+      for (File file : Objects.requireNonNull(backupDir.listFiles())) {
          String name = file.getName();
          if (name.endsWith(".json")) {
             String timeString = name.substring(0, name.length() - 5);
             if (!timeString.isEmpty()) {
                try {
-                  timeStamps.add(Long.parseLong(timeString));
-               } catch (NumberFormatException var9) {
+                  timestamps.add(Long.parseLong(timeString));
+               } catch (NumberFormatException ignored) {
                }
             }
          }
       }
 
-      return timeStamps;
+      return timestamps;
    }
 
-   private static void pruneBackups(File backUpDir, List<Long> timeStamps, int maxSize) {
-      if (timeStamps.size() > maxSize) {
-         timeStamps.sort(Long::compareTo);
+   private static void pruneBackups(File backupDir, List<Long> timestamps, int maxSize) {
+      if (timestamps.size() > maxSize) {
+         timestamps.sort(Long::compareTo);
 
-         for (int i = 0; i < timeStamps.size() - maxSize; i++) {
-            Long ts = timeStamps.get(i);
-            File file = new File(backUpDir, ts + ".json.bak");
+         for (int i = 0; i < timestamps.size() - maxSize; i++) {
+            Long ts = timestamps.get(i);
+            File file = new File(backupDir, ts + ".json");
             if (file.exists() && !file.delete()) {
                RSA.getLogger().error("Failed to delete old backup: {}", file.getName());
             }

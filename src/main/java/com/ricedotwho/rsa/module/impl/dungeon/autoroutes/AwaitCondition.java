@@ -5,15 +5,19 @@ import com.google.gson.JsonObject;
 public abstract class AwaitCondition<T> {
    private final AwaitType type;
 
-   public abstract boolean test(Node var1);
+   // Polled while the node is active to determine whether this await has completed.
+   public abstract boolean test(Node node);
 
-   protected abstract void consume(T var1);
+   // Receives external progress signals (e.g. clicks/secrets) from packet/input hooks.
+   protected abstract void consume(T value);
 
+   // Called once when entering a node that owns this await.
    public abstract void onEnter();
 
+   // Clears all await-local state.
    public abstract void reset();
 
-   public abstract void serialize(JsonObject var1);
+   public abstract void serialize(JsonObject json);
 
    public AwaitCondition(AwaitType type) {
       this.type = type;

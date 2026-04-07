@@ -31,17 +31,16 @@ public final class Util implements Accessor {
          try {
             Class<?> clazz = Class.forName("com.ricedotwho.zero.ZeroClient");
             return (Boolean)clazz.getMethod("isZero").invoke(null);
-         } catch (Throwable var1) {
+         } catch (Throwable e) {
             return false;
          }
-      } else {
-         return false;
       }
+
+      return false;
    }
 
    public static long getMillisFromDHMS(String input) {
-      Pattern pattern = Pattern.compile("(\\d+)\\s*([dhms])");
-      Matcher matcher = pattern.matcher(input);
+      Matcher matcher = timestampPattern.matcher(input);
       long total = 0L;
 
       while (matcher.find()) {

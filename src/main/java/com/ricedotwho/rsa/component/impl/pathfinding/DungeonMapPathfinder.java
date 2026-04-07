@@ -96,7 +96,7 @@ public class DungeonMapPathfinder {
       }
 
       public int getMoveCost() {
-         return this.index * 1;
+         return this.index;
       }
 
       public int getCost() {
@@ -125,7 +125,8 @@ public class DungeonMapPathfinder {
                && doorX < 11
                && doorZ < 11
                && DungeonInfo.getDungeonList()[newX * 2 + newZ * 22] instanceof Room newRoom
-               && (newRoom.getUniqueRoom() == this.room.getUniqueRoom() || DungeonInfo.getDungeonList()[doorX + doorZ * 11] instanceof Door var13)) {
+               && (newRoom.getUniqueRoom() == this.room.getUniqueRoom()
+                  || DungeonInfo.getDungeonList()[doorX + doorZ * 11] instanceof Door)) {
                neighbors.add(new DungeonMapPathfinder.RoomNode(newRoom, this, this.endX, this.endZ));
             }
          }

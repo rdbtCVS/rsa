@@ -175,6 +175,7 @@ public class BloodBlink extends Module {
 
                   KeyBinding.unpressAll();
                   this.state = 0;
+                  // Intentionally fall through to run the initial setup immediately.
                case 0:
                   if (this.targetRoom == null && Dungeon.isStarted()) {
                      RSA.chat("Cannot blood blink while run has started and blood has not been loaded!");
@@ -182,55 +183,9 @@ public class BloodBlink extends Module {
                   } else if (mc.world != null) {
                      this.forceNextSneak = true;
                      if (!(Boolean)this.waitForGround.getValue() || player.isOnGround()) {
-                        if (this.startRoom == null) {
-                           this.startRoom = ScanUtils.getRoomFromPos(player.getBlockX(), player.getBlockZ());
-                        }
-
-                        if (this.startRoom != null
-                           && this.startRoom.getUniqueRoom() != null
-                           && this.startRoom.getUniqueRoom().getRotation() != RoomRotation.UNKNOWN) {
-                           PacketOrderManager.register(PacketOrderManager.STATE.ITEM_USE, () -> {
-                              if (SwapManager.swapItem(Items.DIAMOND_SHOVEL) && player.getLastPlayerInput().sneak() && this.startRoom != null) {
-                                 Pos slab = RoomUtils.getRealPosition(this.getSlabBlockOffset(), this.startRoom);
-                                 Block block = mc.world.getBlockState(slab.asBlockPos()).getBlock();
-                                 if (block == Blocks.AIR) {
-                                    this.isLower = true;
-                                    slab.selfAdd(0.0, -1.0, 0.0);
-                                 }
-
-                                 float[] angles = EtherUtils.getYawAndPitch(slab.asVec3(), true, player, true);
-                                 SwapManager.sendAirC08(angles[0], angles[1], true, false);
-                                 this.state = 2;
-                              }
-                           });
-                        }
+                        this.tryRegisterStartRoomSlabUse(player, 2);
                      }
                   }
-               case 1:
-               case 2:
-               case 3:
-               case 5:
-               case 7:
-               case 8:
-               case 9:
-               case 10:
-               case 12:
-               case 13:
-               case 14:
-               case 16:
-               case 18:
-               case 19:
-               case 20:
-               case 21:
-               case 22:
-               case 23:
-               case 24:
-               case 25:
-               case 26:
-               case 27:
-               case 28:
-               case 30:
-               case 31:
                default:
                   break;
                case 4:
@@ -258,11 +213,7 @@ public class BloodBlink extends Module {
                   if (mc.world != null) {
                      this.forceNextSneak = true;
                      if (!(Boolean)this.waitForGround.getValue() || player.isOnGround()) {
-                        if (this.startRoom == null) {
-                           this.startRoom = ScanUtils.getRoomFromPos(player.getBlockX(), player.getBlockZ());
-                        }
-
-                        if (this.startRoom != null && this.startRoom.getUniqueRoom().getRotation() != RoomRotation.UNKNOWN) {
+                        if (this.ensureValidStartRoom(player)) {
                            if (this.explored) {
                               if (this.targetRoom == null) {
                                  this.findTargetRoom();
@@ -275,20 +226,7 @@ public class BloodBlink extends Module {
                               }
                            }
 
-                           PacketOrderManager.register(PacketOrderManager.STATE.ITEM_USE, () -> {
-                              if (SwapManager.swapItem(Items.DIAMOND_SHOVEL) && player.getLastPlayerInput().sneak() && this.startRoom != null) {
-                                 Pos slab = RoomUtils.getRealPosition(this.getSlabBlockOffset(), this.startRoom);
-                                 Block block = mc.world.getBlockState(slab.asBlockPos()).getBlock();
-                                 if (block == Blocks.AIR) {
-                                    this.isLower = true;
-                                    slab.selfAdd(0.0, -1.0, 0.0);
-                                 }
-
-                                 float[] angles = EtherUtils.getYawAndPitch(slab.asVec3(), true, player, true);
-                                 SwapManager.sendAirC08(angles[0], angles[1], true, false);
-                                 this.state = 13;
-                              }
-                           });
+                           this.tryRegisterStartRoomSlabUse(player, 13);
                         }
                      }
                   }
@@ -316,9 +254,7 @@ public class BloodBlink extends Module {
                               this.aotv0(Math.round(MathHelper.sqrt(deltaX * deltaX + deltaZ * deltaZ) / 12.0F), angles[0], 3.0F);
                               this.aotv0(5, playerYaw, -90.0F);
                               this.state = 29;
-                              if (SwapManager.swapItem(
-                                 (Predicate<ItemStack>)(i -> i.getItem() == Items.ENDER_PEARL && this.isNormalEnderpearlID(ItemUtils.getID(i)))
-                              )) {
+                              if (SwapManager.swapItem((Predicate<ItemStack>)(this::isValidEnderPearlStack))) {
                                  if (!SwapManager.sendAirC08(player.getYaw(), -90.0F, true, true)) {
                                     RSA.chat("Pearl failed!");
                                  } else {
@@ -337,9 +273,40 @@ public class BloodBlink extends Module {
       }
    }
 
+   private boolean ensureValidStartRoom(ClientPlayerEntity player) {
+      if (this.startRoom == null) {
+         this.startRoom = ScanUtils.getRoomFromPos(player.getBlockX(), player.getBlockZ());
+      }
+
+      return this.startRoom != null
+         && this.startRoom.getUniqueRoom() != null
+         && this.startRoom.getUniqueRoom().getRotation() != RoomRotation.UNKNOWN;
+   }
+
+   private void tryRegisterStartRoomSlabUse(ClientPlayerEntity player, int nextState) {
+      if (!this.ensureValidStartRoom(player) || mc.world == null) {
+         return;
+      }
+
+      PacketOrderManager.register(PacketOrderManager.STATE.ITEM_USE, () -> {
+         if (SwapManager.swapItem(Items.DIAMOND_SHOVEL) && player.getLastPlayerInput().sneak() && this.startRoom != null) {
+            Pos slab = RoomUtils.getRealPosition(this.getSlabBlockOffset(), this.startRoom);
+            Block block = mc.world.getBlockState(slab.asBlockPos()).getBlock();
+            if (block == Blocks.AIR) {
+               this.isLower = true;
+               slab.selfAdd(0.0, -1.0, 0.0);
+            }
+
+            float[] angles = EtherUtils.getYawAndPitch(slab.asVec3(), true, player, true);
+            SwapManager.sendAirC08(angles[0], angles[1], true, false);
+            this.state = nextState;
+         }
+      });
+   }
+
    private Direction getVoidRotation() {
-      int xIndex = (this.startRoom.getX() - -185) / 32;
-      int zIndex = (this.startRoom.getZ() - -185) / 32;
+      int xIndex = (this.startRoom.getX() + 185) / 32;
+      int zIndex = (this.startRoom.getZ() + 185) / 32;
       Direction rotation;
       if (xIndex == 0) {
          rotation = Direction.WEST;
@@ -356,6 +323,10 @@ public class BloodBlink extends Module {
 
    private boolean isNormalEnderpearlID(String s) {
       return s.equals("ENDER_PEARL");
+   }
+
+   private boolean isValidEnderPearlStack(ItemStack stack) {
+      return stack.getItem() == Items.ENDER_PEARL && this.isNormalEnderpearlID(ItemUtils.getID(stack));
    }
 
    private static Vec3d fastRotateVec(Direction direction, double x, double y, double z) {
@@ -406,7 +377,7 @@ public class BloodBlink extends Module {
 
    private void pearl(float yaw, float pitch, Runnable succeed) {
       PacketOrderManager.register(PacketOrderManager.STATE.ITEM_USE, () -> {
-         if (SwapManager.swapItem((Predicate<ItemStack>)(i -> i.getItem() == Items.ENDER_PEARL && this.isNormalEnderpearlID(ItemUtils.getID(i))))) {
+         if (SwapManager.swapItem((Predicate<ItemStack>)(this::isValidEnderPearlStack))) {
             if (SwapManager.sendAirC08(yaw, pitch, true, false)) {
                if (succeed != null) {
                   succeed.run();
@@ -420,7 +391,7 @@ public class BloodBlink extends Module {
    public void onLoadRoom(RoomLoad event) {
       if (this.mode.is("Blood") && event.getRoom().getData().type() == RoomType.BLOOD) {
          this.targetRoom = event.getRoom();
-         RSA.chat("Found blood at : " + this.targetRoom.getX() + ", " + this.targetRoom.getZ());
+         RSA.chat("Found blood at: " + this.targetRoom.getX() + ", " + this.targetRoom.getZ());
       }
    }
 
@@ -443,10 +414,11 @@ public class BloodBlink extends Module {
             this.serverTickTimer = (int)(time + ((BigDecimal)this.deathTickOffset.getValue()).intValue()) % 40;
          }
 
-         if (packet instanceof PlayerPositionLookS2CPacket s08) {
+         if (packet instanceof PlayerPositionLookS2CPacket positionLookPacket) {
+            boolean isProxyPearlActive = (Boolean)this.proxyPearl.getValue() && Util.isZero();
             switch (this.state) {
                case 2:
-                  if ((Boolean)this.proxyPearl.getValue() && Util.isZero()) {
+                  if (isProxyPearlActive) {
                      this.sendStartPearling(this.isLower ? 98 : 99);
                      this.state = 5;
                   } else {
@@ -454,8 +426,8 @@ public class BloodBlink extends Module {
                   }
                   break;
                case 5:
-                  if (s08.change().position().y <= (this.isLower ? 97.0 : 98.0)) {
-                     if ((Boolean)this.proxyPearl.getValue() && Util.isZero()) {
+                  if (positionLookPacket.change().position().y <= (this.isLower ? 97.0 : 98.0)) {
+                     if (isProxyPearlActive) {
                         return;
                      }
 
@@ -465,13 +437,13 @@ public class BloodBlink extends Module {
                   }
                   break;
                case 10:
-                  double y = s08.change().position().y;
+                  double y = positionLookPacket.change().position().y;
                   if (y == 76.5 || y == 75.5) {
                      this.state = 11;
                   }
                   break;
                case 13:
-                  if ((Boolean)this.proxyPearl.getValue() && Util.isZero()) {
+                  if (isProxyPearlActive) {
                      this.sendStartPearling(this.isLower ? 98 : 99);
                      this.state = 16;
                   } else {
@@ -479,8 +451,8 @@ public class BloodBlink extends Module {
                   }
                   break;
                case 16:
-                  if (s08.change().position().y <= (this.isLower ? 97.0 : 98.0)) {
-                     if ((Boolean)this.proxyPearl.getValue() && Util.isZero()) {
+                  if (positionLookPacket.change().position().y <= (this.isLower ? 97.0 : 98.0)) {
+                     if (isProxyPearlActive) {
                         return;
                      }
 
@@ -490,10 +462,9 @@ public class BloodBlink extends Module {
                   }
                   break;
                case 30:
-                  Vec3d pos = s08.change().position();
-                  if (this.isInRoom(MathHelper.floor(pos.getX()), MathHelper.floor(pos.getZ()), this.targetRoom)
-                     && !(pos.y < this.targetRoom.getBottom() - 1)
-                     && !(pos.y > this.targetRoom.getBottom() + 7)) {
+                  Vec3d pos = positionLookPacket.change().position();
+                  boolean isWithinRoomYRange = pos.y >= this.targetRoom.getBottom() - 1 && pos.y <= this.targetRoom.getBottom() + 7;
+                  if (this.isInRoom(MathHelper.floor(pos.getX()), MathHelper.floor(pos.getZ()), this.targetRoom) && isWithinRoomYRange) {
                      if (pos.y <= this.targetRoom.getBottom() + 1) {
                         this.state = 29;
                      } else {
@@ -540,7 +511,7 @@ public class BloodBlink extends Module {
    }
 
    private void addRoom(BloodBlink.Entry e) {
-      if (!e.room().isOnBloodRush() && !this.roomPriority.stream().anyMatch(e1 -> e1.room().getName().equals(e.room().getName()))) {
+      if (!e.room().isOnBloodRush() && !this.roomPriority.stream().anyMatch(existingEntry -> existingEntry.room().getName().equals(e.room().getName()))) {
          int i = 0;
 
          while (i < this.roomPriority.size() && this.roomPriority.get(i).priority() <= e.priority()) {

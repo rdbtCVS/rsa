@@ -54,7 +54,6 @@ public class SessionLoginScreen extends Screen implements Accessor {
       this.sessionField.setPosition(this.centerX, this.centerY + 45);
       this.sessionField.setMaxLength(10000);
       this.addDrawableChild(ssidText);
-      this.addDrawableChild(ssidText);
       this.addDrawableChild(this.sessionField);
       this.addDrawableChild(
          ButtonWidget.builder(Text.literal("Login"), button -> this.login())
@@ -109,18 +108,18 @@ public class SessionLoginScreen extends Screen implements Accessor {
             try {
                info = SessionAPI.getProfileInfo(ssidText);
                break;
-            } catch (JsonSyntaxException | MalformedJsonException var6) {
+            } catch (JsonSyntaxException | MalformedJsonException e) {
                this.feedBackMessage = "Ran out of retries, network error!";
                this.feedBackColor = -7405568;
                System.err.println("Failed to parse json! Retries left: " + i);
                i++;
-            } catch (IOException var7) {
+            } catch (IOException e) {
                this.feedBackMessage = "Failed to poll API for username and UUID!";
                this.feedBackColor = -7405568;
                return;
-            } catch (Exception var8) {
+            } catch (Exception e) {
                this.feedBackMessage = "Invalid SSID!";
-               var8.printStackTrace();
+               e.printStackTrace();
                this.feedBackColor = -7405568;
                return;
             }
@@ -129,7 +128,7 @@ public class SessionLoginScreen extends Screen implements Accessor {
          if (info != null) {
             try {
                user = new Session(info[0], SessionAPI.undashedToUUID(info[1]), ssidText, Optional.empty(), Optional.empty());
-            } catch (Exception var5) {
+            } catch (Exception e) {
                this.feedBackMessage = "Failed to parse UUID from string!";
                this.feedBackColor = -7405568;
                return;

@@ -159,8 +159,8 @@ public class InvWalk extends SubModule<AutoTerms> {
                this.gui.renderScaled(event.getGfx(), () -> this.terminalRenderer.renderSolver(gap), 9.0F * gap, slots / 9.0F * gap);
             }
          }
-      } catch (Exception var7) {
-         throw new RuntimeException(var7);
+      } catch (Exception exception) {
+         throw new RuntimeException(exception);
       }
    }
 

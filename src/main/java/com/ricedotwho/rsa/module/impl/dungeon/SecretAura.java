@@ -157,115 +157,135 @@ public class SecretAura extends Module {
 
    @SubscribeEvent
    public void onTickStart(Start event) {
-      if (MinecraftClient.getInstance().player != null && MinecraftClient.getInstance().world != null && !this.type.is("None")) {
-         if ((Boolean)this.forceSkyblock.getValue() || Location.getArea().is(Island.Dungeon) && !this.isRoomDisabled()) {
-            if ((Boolean)this.forceSkyblock.getValue() || !Dungeon.isInBoss() || (Boolean)this.inBoss.getValue()) {
-               if ((Boolean)this.invWalk.getValue() || !(MinecraftClient.getInstance().currentScreen instanceof HandledScreen)) {
-                  ClientWorld level = MinecraftClient.getInstance().world;
-                  boolean sneaking = MinecraftClient.getInstance().player.getLastPlayerInput().sneak();
-                  Vec3d eyePos = MinecraftClient.getInstance()
-                     .player
-                     .getEntityPos()
-                     .add(0.0, sneaking ? 1.54F : MinecraftClient.getInstance().player.getEyeHeight(EntityPose.STANDING), 0.0);
-                  Vec3d flooredEyePos = eyePos.subtract(0.5, 0.0, 0.5);
-                  Iterable<BlockPos> positions;
-                  if (this.type.is("Aura")) {
-                     Box box = new Box(eyePos, eyePos).expand(5.745, 5.745, 5.745);
-                     positions = BlockPos.iterate(box);
-                  } else {
-                     if (!(MinecraftClient.getInstance().crosshairTarget instanceof BlockHitResult blockHitResult)) {
-                        return;
-                     }
+      MinecraftClient client = MinecraftClient.getInstance();
+      if (client.player == null || client.world == null || this.type.is("None")) {
+         return;
+      }
 
-                     positions = Collections.singleton(blockHitResult.getBlockPos());
+      boolean forcedSkyblock = (Boolean)this.forceSkyblock.getValue();
+      if (!forcedSkyblock && (!Location.getArea().is(Island.Dungeon) || this.isRoomDisabled())) {
+         return;
+      }
+
+      if (!forcedSkyblock && Dungeon.isInBoss() && !(Boolean)this.inBoss.getValue()) {
+         return;
+      }
+
+      if (!(Boolean)this.invWalk.getValue() && client.currentScreen instanceof HandledScreen) {
+         return;
+      }
+
+      ClientWorld world = client.world;
+      boolean sneaking = client.player.getLastPlayerInput().sneak();
+      Vec3d eyePos = client.player
+         .getEntityPos()
+         .add(0.0, sneaking ? 1.54F : client.player.getEyeHeight(EntityPose.STANDING), 0.0);
+      Vec3d flooredEyePos = eyePos.subtract(0.5, 0.0, 0.5);
+      Iterable<BlockPos> positions;
+      if (this.type.is("Aura")) {
+         Box box = new Box(eyePos, eyePos).expand(CHEST_RANGE, CHEST_RANGE, CHEST_RANGE);
+         positions = BlockPos.iterate(box);
+      } else {
+         if (!(client.crosshairTarget instanceof BlockHitResult blockHitResult)) {
+            return;
+         }
+
+         positions = Collections.singleton(blockHitResult.getBlockPos());
+      }
+
+      boolean isFloor7Phase3 = Location.getArea().is(Island.Dungeon)
+         && (Location.getFloor() == Floor.F7 || Location.getFloor() == Floor.M7)
+         && DungeonUtils.isPhase(Phase7.P3);
+      boolean isAllowedArea = forcedSkyblock || isFloor7Phase3;
+      double bestDistanceSq = Double.MAX_VALUE;
+      BlockPos bestCandidate = null;
+      boolean requireUnclickedBlock = !(Boolean)this.allowReclick.getValue();
+
+      for (BlockPos blockPos : positions) {
+         int hash = getBlockPosHash(blockPos);
+         BlockState blockState = world.getBlockState(blockPos);
+         Block block = blockState.getBlock();
+         long clickDelay = ((BigDecimal)this.delay.getValue()).longValue();
+         if (isAllowedArea) {
+            if (Dungeon.isInBoss() && block != Blocks.LEVER) {
+               continue;
+            }
+
+            if (block == Blocks.LEVER) {
+               if (this.checkF7BossBlock(blockPos, blockState)) {
+                  if (!(Boolean)this.inBoss.getValue()) {
+                     continue;
                   }
 
-                  boolean bl = (Boolean)this.forceSkyblock.getValue()
-                     || Location.getArea().is(Island.Dungeon)
-                        && (Location.getFloor() == Floor.F7 || Location.getFloor() == Floor.M7)
-                        && DungeonUtils.isPhase(Phase7.P3);
-                  double bestDistance = Double.MAX_VALUE;
-                  BlockPos bestCandidate = null;
-                  boolean bl2 = !(Boolean)this.allowReclick.getValue();
-
-                  for (BlockPos blockPos : positions) {
-                     int hash = getBlockPosHash(blockPos);
-                     BlockState blockState = level.getBlockState(blockPos);
-                     Block block = blockState.getBlock();
-                     long delay = ((BigDecimal)this.delay.getValue()).longValue();
-                     if (bl) {
-                        if (Dungeon.isInBoss() && block != Blocks.LEVER) {
-                           continue;
-                        }
-
-                        if (block == Blocks.LEVER) {
-                           if (this.checkF7BossBlock(blockPos, blockState)) {
-                              if (!(Boolean)this.inBoss.getValue()) {
-                                 continue;
-                              }
-
-                              if ((Boolean)this.allowBossReclick.getValue()) {
-                                 bl2 = false;
-                              }
-
-                              delay = 0L;
-                           } else if (this.checkLightsDev(blockPos)) {
-                              continue;
-                           }
-                        }
-                     }
-
-                     if ((!bl2 || !this.blocksDone.contains(hash))
-                        && (this.isValidBlock(block) || block == Blocks.PLAYER_HEAD && isValidSkull(blockPos, level))
-                        && (!Dungeon.isInBoss() || block != Blocks.PLAYER_HEAD)) {
-                        if (getSkullType(blockPos, level).equals(SecretAura.SkullType.KEY)) {
-                           this.hasRedstoneKey = false;
-                        }
-
-                        if (!this.clickedBlocks.containsKey(hash)) {
-                           if (delay > 0L) {
-                              this.clickedBlocks.put(hash, System.currentTimeMillis() + delay);
-                              continue;
-                           }
-
-                           this.clickedBlocks.put(hash, System.currentTimeMillis());
-                        }
-
-                        long nextClickTime = this.clickedBlocks.get(hash);
-                        if (nextClickTime <= System.currentTimeMillis()) {
-                           double d = flooredEyePos.squaredDistanceTo(blockPos.getX(), blockPos.getY(), blockPos.getZ());
-                           if ((block != Blocks.PLAYER_HEAD || !(d > 20.25)) && !(d > 33.005025) && d < bestDistance) {
-                              bestDistance = d;
-                              bestCandidate = new BlockPos(blockPos);
-                           }
-                        }
-                     }
+                  if ((Boolean)this.allowBossReclick.getValue()) {
+                     requireUnclickedBlock = false;
                   }
 
-                  if (bestCandidate != null) {
-                     BlockState blockStatex = level.getBlockState(bestCandidate);
-                     Block blockx = blockStatex.getBlock();
-                     if (blockx != Blocks.PLAYER_HEAD && MinecraftClient.getInstance().player.getInventory().getSelectedSlot() != 8
-                        || SwapManager.swapSlot(((BigDecimal)this.swapSlot.getValue()).intValue())) {
-                        this.clickedBlocks.put(getBlockPosHash(bestCandidate), System.currentTimeMillis() + ((BigDecimal)this.reclick.getValue()).longValue());
-                        Box blockAABB = blockStatex.getOutlineShape(level, bestCandidate).getBoundingBox();
-                        Vec3d center = new Vec3d(
-                           (blockAABB.minX + blockAABB.maxX) * 0.5 + bestCandidate.getX(),
-                           (blockAABB.minY + blockAABB.maxY) * 0.5 + bestCandidate.getY(),
-                           (blockAABB.minZ + blockAABB.maxZ) * 0.5 + bestCandidate.getZ()
-                        );
-                        BlockHitResult result = RotationUtils.collisionRayTrace(bestCandidate, blockAABB, eyePos, center);
-                        if (result != null) {
-                           PacketOrderManager.register(
-                              PacketOrderManager.STATE.ITEM_USE,
-                              () -> SwapManager.sendBlockC08(result.getPos(), result.getSide(), blockx != Blocks.PLAYER_HEAD, true)
-                           );
-                        }
-                     }
-                  }
+                  clickDelay = 0L;
+               } else if (this.checkLightsDev(blockPos)) {
+                  continue;
                }
             }
          }
+
+         boolean isSkullCandidate = block == Blocks.PLAYER_HEAD && isValidSkull(blockPos, world);
+         if ((requireUnclickedBlock && this.blocksDone.contains(hash))
+            || (!this.isValidBlock(block) && !isSkullCandidate)
+            || (Dungeon.isInBoss() && block == Blocks.PLAYER_HEAD)) {
+            continue;
+         }
+
+         if (getSkullType(blockPos, world).equals(SecretAura.SkullType.KEY)) {
+            this.hasRedstoneKey = false;
+         }
+
+         if (!this.clickedBlocks.containsKey(hash)) {
+            if (clickDelay > 0L) {
+               this.clickedBlocks.put(hash, System.currentTimeMillis() + clickDelay);
+               continue;
+            }
+
+            this.clickedBlocks.put(hash, System.currentTimeMillis());
+         }
+
+         long nextClickTime = this.clickedBlocks.get(hash);
+         if (nextClickTime > System.currentTimeMillis()) {
+            continue;
+         }
+
+         double distanceSq = flooredEyePos.squaredDistanceTo(blockPos.getX(), blockPos.getY(), blockPos.getZ());
+         boolean inSkullRange = block != Blocks.PLAYER_HEAD || distanceSq <= SKULL_RANGE_SQ;
+         boolean inChestRange = distanceSq <= CHEST_RANGE_SQ;
+         if (inSkullRange && inChestRange && distanceSq < bestDistanceSq) {
+            bestDistanceSq = distanceSq;
+            bestCandidate = new BlockPos(blockPos);
+         }
+      }
+
+      if (bestCandidate == null) {
+         return;
+      }
+
+      BlockState candidateState = world.getBlockState(bestCandidate);
+      Block candidateBlock = candidateState.getBlock();
+      boolean alreadyOnSkullSlot = candidateBlock != Blocks.PLAYER_HEAD && client.player.getInventory().getSelectedSlot() == 8;
+      if (alreadyOnSkullSlot && !SwapManager.swapSlot(((BigDecimal)this.swapSlot.getValue()).intValue())) {
+         return;
+      }
+
+      this.clickedBlocks.put(getBlockPosHash(bestCandidate), System.currentTimeMillis() + ((BigDecimal)this.reclick.getValue()).longValue());
+      Box blockAABB = candidateState.getOutlineShape(world, bestCandidate).getBoundingBox();
+      Vec3d center = new Vec3d(
+         (blockAABB.minX + blockAABB.maxX) * 0.5 + bestCandidate.getX(),
+         (blockAABB.minY + blockAABB.maxY) * 0.5 + bestCandidate.getY(),
+         (blockAABB.minZ + blockAABB.maxZ) * 0.5 + bestCandidate.getZ()
+      );
+      BlockHitResult result = RotationUtils.collisionRayTrace(bestCandidate, blockAABB, eyePos, center);
+      if (result != null) {
+         PacketOrderManager.register(
+            PacketOrderManager.STATE.ITEM_USE,
+            () -> SwapManager.sendBlockC08(result.getPos(), result.getSide(), candidateBlock != Blocks.PLAYER_HEAD, true)
+         );
       }
    }
 
@@ -273,19 +293,22 @@ public class SecretAura extends Module {
       return pos.getZ() == 142 && pos.getY() <= 136 && pos.getY() >= 133 && pos.getX() >= 58 && pos.getX() <= 62;
    }
 
-   private boolean checkF7BossBlock(BlockPos pos, BlockState block) {
+   private boolean checkF7BossBlock(BlockPos pos, BlockState blockState) {
       int hash = pos.hashCode();
-      return this.BOSS_LEVERS.contains(hash)
-         || this.checkLightsDev(pos) && (this.LIGHTS_DEV.contains(hash) && !(Boolean)block.get(LeverBlock.POWERED) || hash == this.jewLeverHash);
+      boolean isKnownBossLever = this.BOSS_LEVERS.contains(hash);
+      boolean isUnpoweredLightsLever = this.checkLightsDev(pos)
+         && this.LIGHTS_DEV.contains(hash)
+         && !(Boolean)blockState.get(LeverBlock.POWERED);
+      boolean isJewLever = hash == this.jewLeverHash;
+      return isKnownBossLever || isUnpoweredLightsLever || isJewLever;
    }
 
    private boolean isValidBlock(Block block) {
-      return block == Blocks.AIR
-         ? false
-         : block == Blocks.LEVER
+      return block != Blocks.AIR
+         && (block == Blocks.LEVER
             || block == Blocks.CHEST
             || block == Blocks.TRAPPED_CHEST
-            || block == Blocks.REDSTONE_BLOCK && this.hasRedstoneKey;
+            || block == Blocks.REDSTONE_BLOCK && this.hasRedstoneKey);
    }
 
    public static boolean isValidSkull(BlockPos blockPos, ClientWorld level) {
@@ -302,10 +325,10 @@ public class SecretAura extends Module {
       } else {
          String uuid = gameProfile.getGameProfile().id().toString();
          if (keyOnly) {
-            return uuid.equals("fed95410-aba1-39df-9b95-1d4f361eb66e");
+            return uuid.equals(REDSTONE_KEY_ID);
          } else {
             return switch (uuid) {
-               case "e0f3e929-869e-3dca-9504-54c666ee6f23", "fed95410-aba1-39df-9b95-1d4f361eb66e" -> true;
+               case WITHER_ESSENCE_ID, REDSTONE_KEY_ID -> true;
                default -> false;
             };
          }
@@ -323,28 +346,27 @@ public class SecretAura extends Module {
          String uuid = gameProfile.getGameProfile().id().toString();
 
          return switch (uuid) {
-            case "e0f3e929-869e-3dca-9504-54c666ee6f23" -> SecretAura.SkullType.ESSENCE;
-            case "fed95410-aba1-39df-9b95-1d4f361eb66e" -> SecretAura.SkullType.KEY;
+            case WITHER_ESSENCE_ID -> SecretAura.SkullType.ESSENCE;
+            case REDSTONE_KEY_ID -> SecretAura.SkullType.KEY;
             default -> SecretAura.SkullType.NONE;
          };
       }
    }
 
    private boolean isRoomDisabled() {
-      if (Location.getArea().is(Island.Dungeon) && !Dungeon.isInBoss()) {
-         if (Location.getArea().is(Island.Dungeon) && Map.getCurrentRoom() == null) {
-            return true;
-         } else {
-            String var1 = Map.getCurrentRoom().getData().name();
-
-            return switch (var1) {
-               case "Water Board", "Three Weirdos" -> true;
-               default -> false;
-            };
-         }
-      } else {
+      if (!Location.getArea().is(Island.Dungeon) || Dungeon.isInBoss()) {
          return false;
       }
+
+      if (Map.getCurrentRoom() == null) {
+         return true;
+      }
+
+      String roomName = Map.getCurrentRoom().getData().name();
+      return switch (roomName) {
+         case "Water Board", "Three Weirdos" -> true;
+         default -> false;
+      };
    }
 
    private static int getBlockPosHash(BlockPos blockPos) {
@@ -358,13 +380,13 @@ public class SecretAura extends Module {
             if (packet.getBlock().equals(Blocks.CHERRY_LOG)) {
                this.blocksDone.add(getBlockPosHash(packet.getPos()));
             }
-         } else if (event.getPacket() instanceof EntityEquipmentUpdateS2CPacket packetx) {
-            Entity entity = mc.world.getEntityById(packetx.getEntityId());
-            if (!(entity instanceof ArmorStandEntity) || packetx.getEquipmentList().size() < 4) {
+         } else if (event.getPacket() instanceof EntityEquipmentUpdateS2CPacket equipmentPacket) {
+            Entity entity = mc.world.getEntityById(equipmentPacket.getEntityId());
+            if (!(entity instanceof ArmorStandEntity) || equipmentPacket.getEquipmentList().size() < 4) {
                return;
             }
 
-            ItemStack stack = (ItemStack)((Pair)packetx.getEquipmentList().get(4)).getSecond();
+            ItemStack stack = (ItemStack)((Pair)equipmentPacket.getEquipmentList().get(4)).getSecond();
             if (!stack.isOf(Items.PLAYER_HEAD)) {
                return;
             }
@@ -392,7 +414,7 @@ public class SecretAura extends Module {
 
    @SubscribeEvent
    public void onBlockChange(BlockChangeEvent event) {
-      if (mc.player != null && mc.world != null && !this.type.is("None") && !(mc.player.squaredDistanceTo(event.getPos().asVec3()) > 40.0)) {
+      if (mc.player != null && mc.world != null && !this.type.is("None") && mc.player.squaredDistanceTo(event.getPos().asVec3()) <= 40.0) {
          if (event.getOldState().isOf(Blocks.LEVER)) {
             this.blocksDone.add(getBlockPosHash(event.getBlockPos()));
          } else if (event.getOldState().isOf(Blocks.PLAYER_HEAD)) {
